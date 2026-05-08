@@ -180,6 +180,28 @@ signal(SIGTERM) {
     _ in termination()
 }
 
+extension Backends: ArgumentKind {
+    public init(argument: String) throws {
+        switch Backends(rawValue: argument) {
+        case let .some(b): self = b
+        default: throw ArgumentConversionError.unknown(value: argument)
+        }
+    }
+
+    public static var completion: ShellCompletion = .unspecified
+}
+
+extension LLMProvider: ArgumentKind {
+    public init(argument: String) throws {
+        switch LLMProvider(rawValue: argument) {
+        case let .some(p): self = p
+        default: throw ArgumentConversionError.unknown(value: argument)
+        }
+    }
+
+    public static var completion: ShellCompletion = .unspecified
+}
+
 extension SolverInstance: ArgumentKind {
     public init(argument: String) throws {
         switch SolverInstance(rawValue: argument) {
@@ -204,7 +226,13 @@ do {
     let verbosityOption = parser.add(option: "--verbose", shortName: "-v", kind: Bool.self, usage: "enable verbose output")
     let optimizeOption = parser.add(option: "--optimize", kind: Bool.self, usage: "optimize parameter")
     let syntcompOption = parser.add(option: "--syntcomp", kind: Bool.self, usage: "enable mode that is tailored to the rules of the reactive synthesis competition (and useless otherwise)")
-    let certifierOption = parser.add(option: "--qbfCertifier", kind: SolverInstance.self)
+    let certifierOption  = parser.add(option: "--qbfCertifier", kind: SolverInstance.self)
+    let backendOption    = parser.add(option: "--backend", kind: Backends.self, usage: "encoding backend: explicit, input-symbolic, state-symbolic, symbolic, smt, game-solving (default: game-solving)")
+    let solverOption     = parser.add(option: "--solver",  kind: SolverInstance.self, usage: "solver to use with the chosen backend (e.g. z3, cvc4, idq, pedant, rareqs)")
+    let llmSolveOption    = parser.add(option: "--llm-solve",    kind: Bool.self,        usage: "use an LLM to solve the SMT encoding, incrementing bound until --bound is reached")
+    let maxStatesOption   = parser.add(option: "--bound",        kind: Int.self,         usage: "upper bound on number of states for LLM solve mode (default: 4)")
+    let llmProviderOption = parser.add(option: "--llm-provider", kind: LLMProvider.self, usage: "LLM provider: openai or gemini (default: gemini)")
+    let llmModelOption    = parser.add(option: "--llm-model",    kind: String.self,      usage: "model name override; defaults to gemini-2.0-flash (gemini) or gpt-4o (openai)")
 
     let arguments = Array(CommandLine.arguments.dropFirst())
     let parsed = try parser.parse(arguments)
@@ -232,19 +260,106 @@ do {
     }
 
     let synthesize = parsed.get(synthesizeOption) ?? false
-    let verbose = parsed.get(verbosityOption) ?? false
-    let syntcomp = parsed.get(syntcompOption) ?? false
-    let optimize = parsed.get(optimizeOption) ?? false
+    let verbose    = parsed.get(verbosityOption)  ?? false
+    let syntcomp   = parsed.get(syntcompOption)   ?? false
+    let optimize   = parsed.get(optimizeOption)   ?? false
+    let llmSolve    = parsed.get(llmSolveOption)    ?? false
+    let maxStates   = parsed.get(maxStatesOption)   ?? 4
+    let llmProvider = parsed.get(llmProviderOption) ?? .gemini
+    let llmModel    = parsed.get(llmModelOption)    // nil → provider picks its default
+    let backend     = parsed.get(backendOption)     // nil → use default concurrent game-solving path
+    let solverOverride = parsed.get(solverOption)
 
     var options = BoSyOptions()
     options.qbfPreprocessor = .bloqqer
-    options.solver = .rareqs
+    options.solver = solverOverride ?? backend?.defaultSolver ?? .rareqs
     options.qbfCertifier = parsed.get(certifierOption) ?? .cadet
 
     Logger.default().verbosity = verbose ? .debug : .info
 
     if syntcomp {
         Logger.default().verbosity = .warning
+    }
+
+    // MARK: - LLM solve path (bypasses concurrent search entirely)
+    if llmSolve {
+        let automaton = try CoBüchiAutomaton.from(ltl: !specification.ltl)
+        Logger.default().info("automaton has \(automaton.states.count) states")
+
+        var encoding = LLMSmtEncoding(
+            options: options,
+            automaton: automaton,
+            specification: specification,
+            llmProvider: llmProvider,
+            llmModel: llmModel
+        )
+
+        var solved = false
+        var bound = 1
+        while bound <= maxStates {
+            if try encoding.solve(forBound: bound) {
+                solved = true
+                break
+            }
+            bound *= 2
+        }
+
+        guard solved else {
+            print("UNKNOWN")
+            exit(0)
+        }
+
+        guard
+            let solution = encoding.extractSolution(),
+            let aigerSolution = (solution as? AigerRepresentable)?.aiger
+        else {
+            Logger.default().error("LLM: could not extract AIGER solution")
+            exit(1)
+        }
+
+        print("REALIZABLE")
+        let outputAiger = aigerSolution.minimized ?? aigerSolution
+        aiger_write_to_file(outputAiger, aiger_ascii_mode, stdout)
+        exit(0)
+    }
+
+    // MARK: - single backend path (--backend flag given)
+    if let chosenBackend = backend {
+        let automaton = try CoBüchiAutomaton.from(ltl: !specification.ltl)
+        Logger.default().info("automaton has \(automaton.states.count) states")
+
+        var search = SolutionSearch(
+            options: options,
+            specification: specification,
+            automaton: automaton,
+            searchStrategy: .exponential,
+            player: .system,
+            backend: chosenBackend,
+            synthesize: synthesize
+        )
+
+        guard search.hasSolution() else {
+            print("UNREALIZABLE")
+            exit(0)
+        }
+
+        guard synthesize else {
+            print("REALIZABLE")
+            exit(0)
+        }
+
+        guard
+            let solution = search.getSolution(),
+            let aigerSolution = (solution as? AigerRepresentable)?.aiger
+        else {
+            Logger.default().error("could not extract AIGER solution")
+            exit(1)
+        }
+
+        print("REALIZABLE")
+        let minimized = aigerSolution.minimized ?? aigerSolution
+        aiger_write_to_file(minimized, aiger_ascii_mode, stdout)
+        exit(0)
     }
 
     // MARK: - concurrent execution of search strategy

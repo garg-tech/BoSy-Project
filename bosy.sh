@@ -26,7 +26,7 @@ function run_original() { #the original behavior. encapsulated into function for
 function check_tools() { #check state of the current build, determines what build commands need to be run
     echo "Checking tool state... "
     # spell-checker:disable
-    tools=("abc" "bloqqer" "bloqqer-031" "cadet" "cryptominisat5" "ltl2tgba" "ltl3ba" "idq" "quabs" "rareqs" "syfco" "z3")
+    tools=("abc" "bloqqer" "bloqqer-031" "cadet" "cryptominisat5" "ltl2tgba" "ltl3ba" "idq" "pedant" "quabs" "rareqs" "syfco" "z3")
     tools_full=("aigbmc" "smvtoaig" "caqe" "combine-aiger" "cvc4" "depqbf" "eprover" "picosat-solver" "vampire" "hqs-linux" "hqspre-linux" "ltl2smv" "NuSMV")
     # spell-checker:enable
     if [ ! -d "./Tools" ]; then
@@ -107,10 +107,14 @@ fresh=false
 fresh_full=false
 print_help_flag=false
 tool_help=false
+llm_solve=false
 
 for i in "${!args[@]}"; do
     val=${args[$i]}
     case "$val" in
+    "--llm-solve")
+        llm_solve=true
+        ;;
     "--use-existing")
         use_existing=true
         unset "args[$i]"
@@ -142,6 +146,41 @@ done
 if $print_help_flag; then
     print_help
     exit 0
+fi
+
+if $llm_solve; then
+    # Determine which key is needed based on --llm-provider (default: gemini).
+    llm_provider="gemini"
+    for arg in "${args[@]}"; do
+        case "$arg" in
+            --llm-provider) ;;  # next iteration will catch the value
+        esac
+    done
+    # Simple scan: find --llm-provider and grab the next token.
+    for i in "${!args[@]}"; do
+        if [ "${args[$i]}" = "--llm-provider" ]; then
+            llm_provider="${args[$((i+1))]:-gemini}"
+            break
+        fi
+    done
+
+    case "$llm_provider" in
+        openai)
+            if [ -z "${OPENAI_API_KEY:-}" ]; then
+                echo "Error: --llm-solve with --llm-provider openai requires OPENAI_API_KEY to be set."
+                echo "  export OPENAI_API_KEY=\"sk-...\""
+                exit 1
+            fi
+            ;;
+        gemini|*)
+            if [ -z "${GEMINI_ACCESS_TOKEN:-}" ] && [ -z "${GEMINI_API_KEY:-}" ]; then
+                echo "Error: --llm-solve with --llm-provider gemini requires one of:"
+                echo "  export GEMINI_API_KEY=\"AI...\"           (API key from AI Studio)"
+                echo "  export GEMINI_ACCESS_TOKEN=\$(gcloud auth print-access-token)  (service account)"
+                exit 1
+            fi
+            ;;
+    esac
 fi
 
 echo "'Args passed to bosy: ${args[*]}'"

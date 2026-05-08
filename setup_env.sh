@@ -1,0 +1,2 @@
+export CFLAGS="-D_GNU_SOURCE"
+export CCFLAGS="-D_GNU_SOURCE"

@@ -75,7 +75,7 @@ public enum Backends: String {
         }
     }
 
-    var defaultSolver: SolverInstance? {
+    public var defaultSolver: SolverInstance? {
         switch self {
         case .explicit:
             return .cryptominisat

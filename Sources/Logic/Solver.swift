@@ -26,6 +26,7 @@ public enum SolverInstance: String {
     case idq
     case hqs
     case dcaqe
+    case pedant
 
     // FO solver
     case eprover
@@ -57,6 +58,8 @@ public enum SolverInstance: String {
             return HQS()
         case .dcaqe:
             return DCAQE()
+        case .pedant:
+            return Pedant()
         case .eprover:
             return Eprover()
         case .vampire:
@@ -79,6 +82,7 @@ public enum SolverInstance: String {
         .idq,
         .hqs,
         .dcaqe,
+        .pedant,
         .eprover,
         .vampire,
         .z3,
@@ -725,6 +729,34 @@ struct DCAQE: DqbfSolver {
 
             } catch {
                 Logger.default().error("execution of dcaqe failed")
+                return nil
+            }
+        }
+    }
+}
+
+struct Pedant: DqbfSolver {
+    func solve(formula: Logic, preprocessor: QbfPreprocessor?) -> SolverResult? {
+        let dqdimacsVisitor = DQDIMACSVisitor(formula: formula)
+        let encodedFormula = dqdimacsVisitor.description
+
+        return try? withTemporaryFile(dir: nil, prefix: "", suffix: ".dqdimacs", deleteOnClose: true) {
+            (tempFile: TemporaryFile) throws -> SolverResult? in
+            tempFile.fileHandle.write(Data(encodedFormula.utf8))
+
+            do {
+                let result = try TSCBasic.Process.popen(arguments: ["./Tools/pedant", tempFile.path.pathString])
+                let stdout = try result.utf8Output()
+
+                if stdout.contains("UNSAT") {
+                    return .unsat
+                } else if stdout.contains("SAT") {
+                    return .sat
+                }
+                return nil
+
+            } catch {
+                Logger.default().error("execution of pedant failed")
                 return nil
             }
         }

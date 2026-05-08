@@ -50,6 +50,7 @@ clean-source-tools:
 	rm -rf Tools/rareqs-$(rareqs_version)
 	rm -rf Tools/quabs-git
 	rm -rf Tools/syfco-git
+	rm -rf Tools/pedant-src
 	rm -rf Tools/picosat-$(pico_version)
 	rm -rf Tools/picosat
 	rm -rf Tools/idq-$(idq_version)
@@ -71,6 +72,7 @@ required-tools: \
 	Tools/ltl2tgba \
 	Tools/ltl3ba \
 	Tools/idq \
+	Tools/pedant \
 	Tools/quabs \
 	Tools/rareqs \
 	Tools/syfco \
@@ -276,6 +278,18 @@ Tools/ltl3ba-$(ltl3ba_version): Tools/ltl3ba-$(ltl3ba_version).tar.gz
 	
 Tools/ltl3ba-$(ltl3ba_version).tar.gz: Tools/.f
 	cd Tools ; curl -OL https://sourceforge.net/projects/ltl3ba/files/ltl3ba/1.1/ltl3ba-$(ltl3ba_version).tar.gz
+
+# idq
+# pedant (DQBF solver, built from source via cmake)
+Tools/pedant: Tools/pedant-src
+	sudo apt-get install -y libboost-all-dev cmake gcc
+	mkdir -p Tools/pedant-src/build
+	cd Tools/pedant-src/build && cmake ..
+	cd Tools/pedant-src/build && make
+	cp $$(find Tools/pedant-src/build -name 'pedant' -type f | head -1) Tools/pedant
+
+Tools/pedant-src: Tools/.f
+	cd Tools && git clone --recursive https://github.com/fslivovsky/pedant-solver pedant-src
 
 # idq
 Tools/idq: Tools/idq-$(idq_version)/idq
