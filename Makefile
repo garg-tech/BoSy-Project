@@ -286,7 +286,7 @@ Tools/pedant: Tools/pedant-src
 	mkdir -p Tools/pedant-src/build
 	cd Tools/pedant-src/build && cmake ..
 	cd Tools/pedant-src/build && make
-	cp $$(find Tools/pedant-src/build -name 'pedant' -type f | head -1) Tools/pedant
+	cp Tools/pedant-src/build/src/pedant Tools/pedant
 
 Tools/pedant-src: Tools/.f
 	cd Tools && git clone --recursive https://github.com/fslivovsky/pedant-solver pedant-src
