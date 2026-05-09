@@ -144,7 +144,13 @@ public protocol SmtSolver: Solver {
 }
 
 public protocol DqbfSolver: Solver {
-    func solve(formula: Logic, preprocessor: QbfPreprocessor?) -> SolverResult?
+    mutating func solve(formula: Logic, preprocessor: QbfPreprocessor?) -> SolverResult?
+}
+
+/// A DQBF solver that can also produce an AIGER certificate on SAT.
+public protocol CertifyingDqbfSolver: DqbfSolver {
+    /// The AIGER circuit produced by the last SAT solve call, or nil if UNSAT or not yet solved.
+    var lastCertificate: UnsafeMutablePointer<aiger>? { get }
 }
 
 private enum SolverHelper {
@@ -735,28 +741,49 @@ struct DCAQE: DqbfSolver {
     }
 }
 
-struct Pedant: DqbfSolver {
-    func solve(formula: Logic, preprocessor: QbfPreprocessor?) -> SolverResult? {
+struct Pedant: CertifyingDqbfSolver {
+    private(set) var lastCertificate: UnsafeMutablePointer<aiger>? = nil
+
+    mutating func solve(formula: Logic, preprocessor: QbfPreprocessor?) -> SolverResult? {
+        lastCertificate = nil
+
         let dqdimacsVisitor = DQDIMACSVisitor(formula: formula)
         let encodedFormula = dqdimacsVisitor.description
+
+        // Use a UUID-keyed path for the certificate so pedant can write freely.
+        let certPath = NSTemporaryDirectory() + "pedant_cert_\(UUID().uuidString)"
+        defer { try? FileManager.default.removeItem(atPath: certPath) }
 
         return try? withTemporaryFile(dir: nil, prefix: "", suffix: ".dqdimacs", deleteOnClose: true) {
             (tempFile: TemporaryFile) throws -> SolverResult? in
             tempFile.fileHandle.write(Data(encodedFormula.utf8))
 
             do {
-                let result = try TSCBasic.Process.popen(arguments: ["./Tools/pedant", tempFile.path.pathString])
+                let result = try TSCBasic.Process.popen(arguments: [
+                    "./Tools/pedant",
+                    tempFile.path.pathString,
+                    "--aag", certPath,
+                ])
                 let stdout = try result.utf8Output()
 
                 if stdout.contains("UNSAT") {
                     return .unsat
                 } else if stdout.contains("SAT") {
+                    if let aig = aiger_init() {
+                        let err = aiger_open_and_read_from_file(aig, certPath)
+                        if err == nil {
+                            lastCertificate = aig
+                        } else {
+                            Logger.default().error("pedant: could not read AIGER certificate: \(String(cString: aiger_error(aig)))")
+                            aiger_reset(aig)
+                        }
+                    }
                     return .sat
                 }
                 return nil
 
             } catch {
-                Logger.default().error("execution of pedant failed")
+                Logger.default().error("execution of pedant failed: \(error)")
                 return nil
             }
         }

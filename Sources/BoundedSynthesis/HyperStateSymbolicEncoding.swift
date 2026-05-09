@@ -300,7 +300,7 @@ public class HyperStateSymbolicEncoding: BoSyEncoding {
          print(encodedFormula)
          exit(1) */
 
-        guard let solver = options.solver?.instance as? DqbfSolver else {
+        guard var solver = options.solver?.instance as? DqbfSolver else {
             throw BoSyEncodingError.SolvingFailed("solver creation failed")
         }
 

@@ -9,6 +9,7 @@ struct SymbolicEncoding: BoSyEncoding {
     let options: BoSyOptions
     let automaton: CoBüchiAutomaton
     let specification: SynthesisSpecification
+    private var lastSolver: DqbfSolver? = nil
 
     init(options: BoSyOptions, automaton: CoBüchiAutomaton, specification: SynthesisSpecification) {
         self.options = options
@@ -186,7 +187,7 @@ struct SymbolicEncoding: BoSyEncoding {
         constraintTimer?.stop()
         // print(instance)
 
-        guard let solver = options.solver?.instance as? DqbfSolver else {
+        guard var solver = options.solver?.instance as? DqbfSolver else {
             throw BoSyEncodingError.SolvingFailed("solver creation failed")
         }
 
@@ -197,10 +198,15 @@ struct SymbolicEncoding: BoSyEncoding {
         }
         solvingTimer?.stop()
 
+        lastSolver = solver
         return result == .sat
     }
 
     func extractSolution() -> TransitionSystem? {
-        nil
+        if let certSolver = lastSolver as? CertifyingDqbfSolver,
+           let aig = certSolver.lastCertificate {
+            return AigerSolution(aiger: aig)
+        }
+        return nil
     }
 }

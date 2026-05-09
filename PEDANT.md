@@ -119,9 +119,11 @@ struct Pedant: DqbfSolver {
 }
 ```
 
-The struct follows the same pattern as `iDQ`: encode the `Logic` formula to
-DQDIMACS via `DQDIMACSVisitor`, write it to a temp file, invoke the binary,
-and scan stdout for `"SAT"` / `"UNSAT"`.
+Unlike `iDQ` (which only checks SAT/UNSAT), `Pedant` also passes `--aag <tmpfile>`
+to request an AIGER certificate on SAT. The certificate is read back via
+`aiger_open_and_read_from_file` and stored in `lastCertificate`, which
+`extractSolution()` in the DQBF encodings picks up via the
+`CertifyingDqbfSolver` protocol.
 
 Note: pedant does not support a preprocessor argument. The `preprocessor`
 parameter from the `DqbfSolver` protocol is accepted but ignored.
@@ -148,3 +150,44 @@ at the encoding layer.
 The `Pedant` struct checks for the strings `"SAT"` and `"UNSAT"` in stdout.
 If a future version of pedant changes its output format, update the
 `stdout.contains(...)` checks in `Sources/Logic/Solver.swift`.
+
+---
+
+## Limitations of the AIGER Certificate
+
+When `--synthesize` is used with pedant, the AIGER circuit produced has two
+known limitations that are inherent to how DQDIMACS encoding works. These are
+not fixable without significant additional engineering and are accepted as-is.
+
+### 1. No latches — purely combinational circuit
+
+The DQDIMACS encoding represents the synthesis problem as a snapshot formula,
+not a sequential circuit. Universal variables encode the current state bits
+and inputs; existential variables encode outputs and next-state bits. Pedant's
+AIGER certificate is therefore a **purely combinational** circuit: it computes
+next-state and output values from current-state and input values, but contains
+no latches to close the state feedback loop.
+
+A correct sequential AIGER would require identifying which outputs are
+next-state bits, adding latches connecting them back to the corresponding
+state-bit inputs, and re-wiring the circuit accordingly. This is not
+implemented.
+
+### 2. Signal names are DQDIMACS variable numbers, not spec names
+
+The DQDIMACS encoding maps named signals (`r_0`, `g_1`, etc.) to integer
+variable numbers. Pedant only sees these numbers and its AIGER symbol table
+labels signals by those numbers (e.g. `i0 3`, `o0 7`), not by the original
+names from the `.bosy` spec.
+
+A correct relabeling would require tracking the variable-number → signal-name
+mapping during encoding and applying it to the certificate's symbol table.
+This is not implemented.
+
+### Summary
+
+| Property | Normal BoSy AIGER | Pedant AIGER certificate |
+|----------|------------------|--------------------------|
+| Latches | Yes (FSM states) | No (combinational only) |
+| Signal names | `r_0`, `g_1`, etc. | Integer variable numbers |
+| Correctness | Formally verified | Not verified |
