@@ -54,6 +54,23 @@ class TerminationCondition {
     }
 }
 
+public enum SynthesisSearchStrategy: String {
+    case linear
+    case expo
+    case hybrid
+}
+
+extension SynthesisSearchStrategy: ArgumentKind {
+    public init(argument: String) throws {
+        switch SynthesisSearchStrategy(rawValue: argument) {
+        case let .some(value): self = value
+        default: throw ArgumentConversionError.unknown(value: argument)
+        }
+    }
+
+    public static var completion: ShellCompletion = .unspecified
+}
+
 func search(specification: SynthesisSpecification, player: Player, options _: BoSyOptions, synthesize: Bool) -> SafetyAutomaton<CoBüchiAutomaton.CounterState>? {
     do {
         let automaton = try CoBüchiAutomaton.from(ltl: !specification.ltl)
@@ -90,11 +107,22 @@ func search(specification: SynthesisSpecification, player: Player, options _: Bo
     }
 }
 
-func synthesizeSolution(specification: SynthesisSpecification, player _: Player, safetyAutomaton: SafetyAutomaton<CoBüchiAutomaton.CounterState>, options: BoSyOptions) -> UnsafeMutablePointer<aiger>? {
+func synthesizeSolution(specification: SynthesisSpecification, player _: Player, safetyAutomaton: SafetyAutomaton<CoBüchiAutomaton.CounterState>, strategy: SynthesisSearchStrategy, options: BoSyOptions) -> UnsafeMutablePointer<aiger>? {
     do {
         let synthesizer = InputSymbolicEncoding(options: options, automaton: safetyAutomaton, specification: specification, synthesize: true)
         var f = false
-        guard let states = try synthesizer.searchMinimalExponential(cancelled: &f) else {
+        let states: NumberOfStates?
+
+        switch strategy {
+        case .linear:
+            states = try synthesizer.searchMinimalLinearSynth(cancelled: &f)
+        case .expo:
+            states = try synthesizer.searchMinimalExponential(cancelled: &f)
+        case .hybrid:
+            states = try synthesizer.searchMinimalHybrid(cancelled: &f)
+        }
+
+        guard let states = states else {
             fatalError()
         }
         Logger.default().info("found solution with \(states) states")
@@ -226,6 +254,7 @@ do {
     let verbosityOption = parser.add(option: "--verbose", shortName: "-v", kind: Bool.self, usage: "enable verbose output")
     let optimizeOption = parser.add(option: "--optimize", kind: Bool.self, usage: "optimize parameter")
     let syntcompOption = parser.add(option: "--syntcomp", kind: Bool.self, usage: "enable mode that is tailored to the rules of the reactive synthesis competition (and useless otherwise)")
+    let strategyOption   = parser.add(option: "--strategy", kind: SynthesisSearchStrategy.self, usage: "synthesis search strategy: linear, expo, hybrid (default: hybrid)")
     let certifierOption  = parser.add(option: "--qbfCertifier", kind: SolverInstance.self)
     let backendOption    = parser.add(option: "--backend", kind: Backends.self, usage: "encoding backend: explicit, input-symbolic, state-symbolic, symbolic, smt, game-solving (default: game-solving)")
     let solverOption     = parser.add(option: "--solver",  kind: SolverInstance.self, usage: "solver to use with the chosen backend (e.g. z3, cvc4, idq, pedant, rareqs)")
@@ -263,6 +292,7 @@ do {
     let verbose    = parsed.get(verbosityOption)  ?? false
     let syntcomp   = parsed.get(syntcompOption)   ?? false
     let optimize   = parsed.get(optimizeOption)   ?? false
+    let strategy   = parsed.get(strategyOption)   ?? .hybrid
     let llmSolve    = parsed.get(llmSolveOption)    ?? false
     let maxStates   = parsed.get(maxStatesOption)   ?? 4
     let llmProvider = parsed.get(llmProviderOption) ?? .gemini
@@ -414,7 +444,7 @@ do {
 
     cancelled = true
 
-    guard let solution = synthesizeSolution(specification: w == .system ? specification : specification.dualized, player: w, safetyAutomaton: automaton, options: options) else {
+    guard let solution = synthesizeSolution(specification: w == .system ? specification : specification.dualized, player: w, safetyAutomaton: automaton, strategy: strategy, options: options) else {
         fatalError()
     }
 
