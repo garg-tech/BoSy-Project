@@ -27,6 +27,7 @@ public enum SolverInstance: String {
     case hqs
     case dcaqe
     case pedant
+    case dqbdd
 
     // FO solver
     case eprover
@@ -60,6 +61,8 @@ public enum SolverInstance: String {
             return DCAQE()
         case .pedant:
             return Pedant()
+        case .dqbdd:
+            return DQBDD()
         case .eprover:
             return Eprover()
         case .vampire:
@@ -83,6 +86,7 @@ public enum SolverInstance: String {
         .hqs,
         .dcaqe,
         .pedant,
+        .dqbdd,
         .eprover,
         .vampire,
         .z3,
@@ -735,6 +739,41 @@ struct DCAQE: DqbfSolver {
 
             } catch {
                 Logger.default().error("execution of dcaqe failed")
+                return nil
+            }
+        }
+    }
+}
+
+struct DQBDD: DqbfSolver {
+    func solve(formula: Logic, preprocessor: QbfPreprocessor?) -> SolverResult? {
+        let dqdimacsVisitor = DQDIMACSVisitor(formula: formula)
+        var encodedFormula = dqdimacsVisitor.description
+
+        if let preprocessor = preprocessor {
+            guard let preprocessedFormula = preprocessor.preprocess(qbf: encodedFormula) else {
+                return nil
+            }
+            encodedFormula = preprocessedFormula
+        }
+
+        return try? withTemporaryFile(dir: nil, prefix: "", suffix: ".dqdimacs", deleteOnClose: true) {
+            (tempFile: TemporaryFile) throws -> SolverResult? in
+            tempFile.fileHandle.write(Data(encodedFormula.utf8))
+
+            do {
+                let result = try TSCBasic.Process.popen(arguments: ["./Tools/dqbdd", "-p", "0", tempFile.path.pathString])
+                let stdout = try result.utf8Output()
+
+                if stdout.contains("UNSAT") {
+                    return .unsat
+                } else if stdout.contains("SAT") {
+                    return .sat
+                }
+                return nil
+
+            } catch {
+                Logger.default().error("execution of dqbdd failed")
                 return nil
             }
         }

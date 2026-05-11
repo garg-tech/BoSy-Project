@@ -14,6 +14,7 @@ nuSMV_version=v1.2#prebuild file version
 pico_version=965
 rareqs_version=1.1
 z3_version=4.8.10
+dqbdd_version=1.3
 
 
 .PHONY: default debug release test tools required-tools optional-tools all clean distclean
@@ -69,6 +70,7 @@ required-tools: \
 	Tools/bloqqer-031 \
 	Tools/cadet \
 	Tools/cryptominisat5 \
+	Tools/dqbdd \
 	Tools/ltl2tgba \
 	Tools/ltl3ba \
 	Tools/idq \
@@ -306,6 +308,11 @@ Tools/idq-$(idq_version): Tools/idq-$(idq_version).tar.gz
 
 Tools/idq-$(idq_version).tar.gz: Tools/.f
 	cd Tools ; curl -OL http://fmv.jku.at/idq/idq-$(idq_version).tar.gz
+
+# dqbdd (DQBF solver, built from source via cmake)
+Tools/dqbdd: Tools/.f
+	curl -L -o Tools/dqbdd https://github.com/jurajsic/DQBDD/releases/download/v$(dqbdd_version)/dqbdd_linux_static
+	chmod +x Tools/dqbdd
 
 # hqs
 Tools/hqs: Tools/hqs-bin/hqs

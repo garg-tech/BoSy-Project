@@ -1,0 +1,64 @@
+{
+    "configurations": [
+        {
+            "type": "swift",
+            "request": "launch",
+            "args": [],
+            "cwd": "${workspaceFolder:bosyCombined}",
+            "name": "Debug BoSy",
+            "target": "BoSy",
+            "configuration": "debug",
+            "preLaunchTask": "swift: Build Debug BoSy"
+        },
+        {
+            "type": "swift",
+            "request": "launch",
+            "args": [],
+            "cwd": "${workspaceFolder:bosyCombined}",
+            "name": "Release BoSy",
+            "target": "BoSy",
+            "configuration": "release",
+            "preLaunchTask": "swift: Build Release BoSy"
+        },
+        {
+            "type": "swift",
+            "request": "launch",
+            "args": [],
+            "cwd": "${workspaceFolder:bosyCombined}",
+            "name": "Debug BoSyBackend",
+            "target": "BoSyBackend",
+            "configuration": "debug",
+            "preLaunchTask": "swift: Build Debug BoSyBackend"
+        },
+        {
+            "type": "swift",
+            "request": "launch",
+            "args": [],
+            "cwd": "${workspaceFolder:bosyCombined}",
+            "name": "Release BoSyBackend",
+            "target": "BoSyBackend",
+            "configuration": "release",
+            "preLaunchTask": "swift: Build Release BoSyBackend"
+        },
+        {
+            "type": "swift",
+            "request": "launch",
+            "args": [],
+            "cwd": "${workspaceFolder:bosyCombined}",
+            "name": "Debug BoSyHyper",
+            "target": "BoSyHyper",
+            "configuration": "debug",
+            "preLaunchTask": "swift: Build Debug BoSyHyper"
+        },
+        {
+            "type": "swift",
+            "request": "launch",
+            "args": [],
+            "cwd": "${workspaceFolder:bosyCombined}",
+            "name": "Release BoSyHyper",
+            "target": "BoSyHyper",
+            "configuration": "release",
+            "preLaunchTask": "swift: Build Release BoSyHyper"
+        }
+    ]
+}
