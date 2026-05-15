@@ -1,0 +1,11 @@
+p cnf 3 4
+a 1 2 0
+d 3 1 0
+c Clause 1: e must equal u1 -- (e OR NOT u1)
+-1 3 0
+c Clause 2: e must equal u1 -- (NOT e OR u1)
+1 -3 0
+c Clause 3: e must equal u2 -- (e OR NOT u2)
+-2 3 0
+c Clause 4: e must equal u2 -- (NOT e OR u2)
+2 -3 0

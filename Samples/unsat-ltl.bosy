@@ -1,0 +1,11 @@
+{
+    "semantics": "mealy",
+    "inputs": ["r_0", "r_1"],
+    "outputs": ["g_0", "g_1"],
+    "assumptions": [],
+    "guarantees": [
+        "G ((!g_0 || !g_1))",
+        "G (g_0)",
+        "G (g_1)"
+    ]
+}
