@@ -255,7 +255,7 @@ public struct BoSyOptions {
         }
 
         do {
-            let args = self.spotOptions ?? self.spotSimplGoal.rawValue + " " + self.spotSimplLevel.rawValue
+            let args = self.spotOptions ?? "--\(self.spotSimplGoal.rawValue) --\(self.spotSimplLevel.rawValue)"
             try converter = initAutomatonConverter(autoTool, args: args)
             if autoTool != "spot" && spotOptionsSet {
                  Logger.default().warning("Command line options for spot set but spot is not beeing used. Ignoring. \n Set options were \(args). \n")

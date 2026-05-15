@@ -30,3 +30,23 @@ Add at top of:
 ```swift
 import Glibc
 ```
+
+
+---
+
+## Issue 4: DQBDD not building properly
+
+Use the binary from the github: 
+https://github.com/jurajsic/DQBDD/releases/download/v1.3/dqbdd_linux_static
+
+Rename it to `dqbdd` and place it in the tools directory
+
+---
+## Issue 5: DIMACSVisitor.visit(proposition:) crash 
+
+Replace line 258 in Sources/BoundedSynthesis/Options.swift 
+with: 
+
+```swift
+let args = self.spotOptions ?? "--\(self.spotSimplGoal.rawValue) --\(self.spotSimplLevel.rawValue)"
+```

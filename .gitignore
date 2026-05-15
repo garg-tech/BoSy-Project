@@ -6,5 +6,8 @@
 Package.resolved
 tool_build.log
 tool_build_errors.log
+benchmarking*/
+benchmark*
+LTL-Synth/
 
 credentials.json
