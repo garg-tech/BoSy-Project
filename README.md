@@ -1,115 +1,88 @@
-# BoSy
+# BoSy — Extended
 
-BoSy is a reactive synthesis tool based on constraint-solving.
+This repository extends the original [BoSy](BOSY_README.md) reactive synthesis
+tool with three additional components, developed as part of a study on synthesis
+backends and LLM-based solving.
 
+---
 
-## Awards
+## Extensions
 
-* First and second place in sequential LTL synthesis track (SYNTCOMP 2016)
-* Second and third place in sequential LTL realizability track (SYNTCOMP 2016)
-* First place (quality ranking) in sequential LTL synthesis track (SYNTCOMP 2017)
-* Third place in sequential LTL realizability track (SYNTCOMP 2017)
+### 1. Hybrid Bound Search Strategy (`expo+bs`)
 
-## Online Interface
+An alternative bound search strategy that combines exponential doubling
+(to quickly bracket the solution) with binary search refinement (to find the
+minimum bound). This reduces unnecessary solver calls compared to pure
+exponential search when the minimal bound matters.
 
-BoSy can be tried without installation directly in your browser in our [online interface](https://www.react.uni-saarland.de/tools/online/BoSy/).
-
-## Installation
-
-BoSy is tested on macOS and Ubuntu.
-
-* Requires [Swift compiler](https://swift.org/download)
-* `make` builds the minimal configuration:
-	*  downloads and builds required dependencies (in directory `Tools`)
-	*  builds the BoSy binary
-* Optional dependencies are built with `make all`
-
-> One may need to install additional dependencies for building the tools that BoSy depends on. Check the make output and the respective tool description for more information.
-
-### System Package Dependencies
-
-The following packages need to be installed in order to build BoSy with all dependencies.
-
-For CAQE, you also need Rust installed.
-
-One may also need to install the `python-is-python3` package.
-#### Ubuntu 20.04
+See [BOUND_SEARCH.md](BOUND_SEARCH.md) for a description of the algorithm and
+when to prefer each strategy.
 
 ```bash
-apt-get install bison build-essential clang cmake curl flex gcc git libantlr3c-dev libbdd-dev libboost-program-options-dev libicu-dev libreadline-dev mercurial psmisc unzip vim-common wget zlib1g-dev libsqlite3-dev python3-distutils
-# for rust
-apt-get install rustc cargo
-# Haskell stack
-curl -sSL https://get.haskellstack.org/ | sh
-``` 
-#### macOS
-
-```
-xcode-select --install
-brew tap brewsci/science
-brew install libbuddy haskell-stack cmake
+./bosy.sh --strategy expo+bs Samples/simple_arbiter.bosy
 ```
 
+---
 
-## Usage
+### 2. DQBF Solver Integrations
 
-BoSy uses a JSON based input file format (SYNTCOMP TLSF support via a [transformation tool](https://github.com/reactive-systems/syfco)).
+Two new solvers were added for BoSy's DQBF encodings (`state-symbolic`,
+`symbolic`), following the same integration pattern:
 
-Consider the following arbiter specification for two clients.
-Every request from a client (signal `r_0`/`r_1`) must be eventually granted (signal `g_0`/`g_1`) by the arbiter with the restriction that `g_0` and `g_1` may not be set simultaneously.
+#### Pedant
 
-```json
-{
-	"semantics": "mealy",
-	"inputs":  ["r_0", "r_1"],
-	"outputs": ["g_0", "g_1"],
-	"assumptions": [],
-	"guarantees": [
-		"G ((!g_0) || (!g_1))",
-		"G (r_0 -> (F g_0))",
-		"G (r_1 -> (F g_1))"
-	]
-}
-```
+[Pedant](https://github.com/fslivovsky/pedant-solver) is a DQBF solver based
+on interpolation/CEGIS. It is the only added solver that also produces an
+**AIGER certificate** on SAT (via `--aag`), enabling circuit extraction through
+`--synthesize`. Known limitations of the certificate are documented in the
+linked readme.
 
-The command `./bosy.sh [--synthesize] arbiter.json` checks the specification for realizability.
-If the option `--synthesize` is given, a solution is extracted after realizability check.
-Check `./bosy.sh --help` for more options.
-
-
-## Synthesis from HyperLTL Specifications
-
-`BoSyHyper` (a separate binary) supports synthesis of reactive systems from specifications given in HyperLTL.
-
-
-### Example
-
-The following system keeps a `secret` until the `publish` signal arrives.
-
-```json
-{
-    "semantics": "moore",
-    "inputs": ["decision", "value", "publish"],
-    "outputs": ["internal", "result"],
-    "assumptions": [],
-    "guarantees": [
-        "!internal",
-        "(G (decision -> (value <-> X internal)))",
-        "(G (!decision -> (internal <-> X internal)))",
-        "(G ( publish -> X(internal <-> result)))"
-    ],
-    "hyper": [
-        "forall pi1 pi2. ( (publish[pi1] || publish[pi2]) R (result[pi1] <-> result[pi2]) )"
-    ]
-}
-```
+See [PEDANT.md](PEDANT.md) for build instructions, code changes, and
+limitations of the AIGER output.
 
 ```bash
-$ swift run -c release BoSyHyper Samples/HyperLTL/SecretDecision.bosy
-info: Linear automaton contains 4 states
-info: Hyper automaton contains 1 states
-info: build encoding for bound 1
-info: build encoding for bound 2
-info: build encoding for bound 3
-realizable
+./bosy.sh --backend state-symbolic --solver pedant --synthesize Samples/simple_arbiter.bosy
 ```
+
+#### DQBDD
+
+[DQBDD](https://github.com/jurajsic/DQBDD) is a BDD-based DQBF solver. It
+supports realizability checking only (no certificate output).
+
+See [DQBDD.md](DQBDD.md) for build instructions and code changes.
+
+```bash
+./bosy.sh --backend state-symbolic --solver dqbdd Samples/simple_arbiter.bosy
+```
+
+Both solvers are selected via the `--backend` and `--solver` flags described
+in [SPECIFIC_SOLVER.md](SPECIFIC_SOLVER.md).
+
+---
+
+### 3. LLM Solver
+
+An experimental backend that sends BoSy's SMTLIB2 encoding directly to an
+OpenAI language model (gpt-4o, o4-mini) and asks it to find a satisfying
+assignment, bypassing the traditional SMT solver entirely.
+
+**Key finding:** LLMs respond to prompt framing rather than formula content —
+they hallucinate SAT at incorrect bounds and ignore quantified constraints such
+as the `lambdaSharp` liveness witnesses.
+
+See [LLM_SOLVER.md](LLM_SOLVER.md) for full details, usage, and observations.
+
+```bash
+export OPENAI_API_KEY="sk-..."
+./bosy.sh --llm-solve --bound 4 Samples/simple_arbiter.bosy
+```
+
+---
+
+## Original BoSy
+
+For the original tool documentation — installation, flags, encoding backends,
+and the SYNTCOMP results — see [BOSY_README.md](BOSY_README.md).
+
+For a full walkthrough of the codebase, module structure, and pipeline, see
+[CODEBASE.md](CODEBASE.md).
