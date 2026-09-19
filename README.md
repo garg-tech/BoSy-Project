@@ -1,6 +1,6 @@
 # BoSy — Extended
 
-This repository extends the original [BoSy](BOSY_README.md) reactive synthesis
+This repository extends the original [BoSy](https://github.com/reactive-systems/bosy) reactive synthesis
 tool with three additional components, developed as part of a study on synthesis
 backends and LLM-based solving.
 
