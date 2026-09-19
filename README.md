@@ -86,3 +86,17 @@ and the SYNTCOMP results — see [BOSY_README.md](BOSY_README.md).
 
 For a full walkthrough of the codebase, module structure, and pipeline, see
 [CODEBASE.md](CODEBASE.md).
+
+## Contributors
+
+Course project (Software Verification, IIT Hyderabad, Jan–May 2026) by
+[Devansh Garg](https://github.com/garg-tech), [Tarun](https://github.com/Tarun-pvc),
+and [Meet](https://github.com/meet1744), under the guidance of Dr. Ashish Mishra.
+
+## License
+
+This repository is a modified version of BoSy and remains licensed under the
+GNU Affero General Public License v3.0 (AGPL-3.0). See [LICENSE](LICENSE).
+
+Original BoSy © Peter Faymonville, Bernd Finkbeiner, and Leander Tentrup —
+<https://github.com/reactive-systems/bosy>
